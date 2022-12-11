@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8">
+    <title>Daily Maths</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: Arial Rounded MT Bold, Roboto, serif;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      h1 {
+        font-size: 200%;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+      }
+      h3 {
+        font-size: 120%;
+        color: #666666;
+      }
+      #question {
+        margin-top: 3rem;
+        font-size: 600%;
+        margin-bottom: 2rem;
+      }
+      #error {
+        background-color: #f3c8c8;
+        color: #8b1616;
+        border-radius: 0.5rem;
+        padding: 0.5rem 1rem;
+        width: 18rem;
+        font-size: 150%;
+        margin-bottom: 2rem;
+        display: none;
+      }
+      #error.show {
+        display: block;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .buttonRow {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+      }
+      input[type="text"] {
+        font-size: 300%;
+        padding: 0.25rem;
+        border: 1px solid #666666;
+        text-align: center;
+        border-radius: 0.5rem;
+        width: 15rem;
+        margin-bottom: 2rem;
+      }
+      input[type="submit"],
+      button {
+        font-size: 200%;
+        padding: 1rem;
+        background-color: #4a7de5;
+        border: 0.5rem solid #4a7de5;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        text-align: center;
+        width: 10rem;
+        margin-bottom: 2rem;
+        cursor: pointer;
+        opacity: 0.9;
+        transition: 0.2s;
+      }
+      input[type="submit"]:hover,
+      button:hover {
+        opacity: 1;
+      }
+      #dayComplete {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+      }
+      #dayComplete.show {
+        display: flex;
+      }
+      #dayComplete table td {
+        padding: 0.5rem;
+      }
+      #dayComplete table td:first-child {
+        color: #666666;
+        text-align: right;
+      }
+    </style>
+    <script>
+      // The version of the questions. If we change the difficulty
+      // significantly, increment this, so that we discard the stats for
+      // previous versions.
+      const CURRENT_VERSION = 1;
+
+      /** The difficulty levels we have */
+      const DIFFICULTY_LEVELS = ["easy", "medium", "hard"];
+
+      // Mulberry pRNG, a seedable 32-bit pRNG.
+      function mulberry32(a) {
+        return function () {
+          var t = (a += 0x6d2b79f5);
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      /**
+       * Construct the questions, and store them on the global
+       * `window.ollyQuestions`.
+       * */
+      function generateQuestions() {
+        // Get the local date as YYYYMMDD
+        const date = Number(
+          `${new Date().getFullYear()}${new Date().getMonth()}${new Date().getDate()}`
+        );
+
+        // Seed the RNG
+        /** A Seeded pRNG that returns numbers from 0 to 1 */
+        const random = mulberry32(date);
+
+        /** Get an integer in a range (inclusive) */
+        function getInteger(lower, upper) {
+          return Math.floor(lower + random() * (upper - lower + 1));
+        }
+
+        /** Gets a random "small" number (2-12 inclusive) */
+        function getSmallNumber() {
+          return getInteger(2, 12);
+        }
+        /** Gets a random "medium" number (10-100 inclusive) */
+        function getMediumNumber() {
+          return getInteger(10, 100);
+        }
+        /** Gets a random "large" number (100-1000 inclusive) */
+        function getLargeNumber() {
+          return getInteger(100, 1000);
+        }
+
+        // Come up with the questions!
+        // Questions look like:
+        // {
+        //   numbers: [1, 1],
+        //   operator: "+",
+        //   answer: 2
+        // }
+        const easyQuestions = [];
+        const mediumQuestions = [];
+        const hardQuestions = [];
+
+        /*
+          EASY QUESTIONS
+
+          For +/-/* the small numbers are all reused.
+
+          For +/-/*: {small} +/-/* {small}.
+          For division: {small * small} / {small}
+        */
+
+        const easy1 = getSmallNumber();
+        const easy2 = getSmallNumber();
+        easyQuestions.push({
+          numbers: [easy1, easy2],
+          operator: "+",
+          answer: easy1 + easy2,
+        });
+        easyQuestions.push({
+          numbers: [easy1, easy2],
+          operator: "-",
+          answer: easy1 - easy2,
+        });
+        easyQuestions.push({
+          numbers: [easy1, easy2],
+          operator: "×",
+          answer: easy1 * easy2,
+        });
+        const easy3 = getSmallNumber();
+        const easyDivisionAnswer = getSmallNumber();
+        easyQuestions.push({
+          numbers: [easy3 * easyDivisionAnswer, easy3],
+          operator: "÷",
+          answer: easyDivisionAnswer,
+        });
+
+        /*
+          MEDIUM QUESTIONS
+
+          These questions are all independent.
+
+          For addition: {medium} + {small} + {small}
+          For subtraction: {medium} - {small} - {small}
+          For multiplication: {small} * {small} * {small}
+          For division: ({small} * {small} * {small}) / ({small} * {small})
+        */
+        const med1 = getMediumNumber();
+        const med2 = getSmallNumber();
+        const med3 = getSmallNumber();
+        const medAdditionQuestion = [med1, med2, med3].sort(
+          () => random() - 0.5
+        );
+        mediumQuestions.push({
+          numbers: medAdditionQuestion,
+          operator: "+",
+          answer: med1 + med2 + med3,
+        });
+
+        const med4 = getMediumNumber();
+        const med5 = getSmallNumber();
+        const med6 = getSmallNumber();
+        mediumQuestions.push({
+          numbers: [med4, med5, med6],
+          operator: "-",
+          answer: med4 - med5 - med6,
+        });
+
+        const med7 = getSmallNumber();
+        const med8 = getSmallNumber();
+        const med9 = getSmallNumber();
+        mediumQuestions.push({
+          numbers: [med7, med8, med9],
+          operator: "×",
+          answer: med7 * med8 * med9,
+        });
+
+        const med10 = getSmallNumber();
+        const med11 = getSmallNumber();
+        const med12 = getSmallNumber();
+        mediumQuestions.push({
+          numbers: [med10 * med11 * med12, med10 * med11],
+          operator: "÷",
+          answer: med12,
+        });
+
+        /*
+          HARD QUESTIONS
+
+          These questions are also all independent.
+
+          For addition: {medium} + {large}
+          For subtraction: {large} - {medium}
+          For multiplication: {medium} * {medium}
+          For division: ({small} * {medium}) / {small}
+        */
+        const hard1 = getMediumNumber();
+        const hard2 = getLargeNumber();
+        const hardAdditionQuestion = [hard1, hard2].sort(() => random() - 0.5);
+        hardQuestions.push({
+          numbers: hardAdditionQuestion,
+          operator: "+",
+          answer: hard1 + hard2,
+        });
+
+        const hard3 = getLargeNumber();
+        const hard4 = getMediumNumber();
+        hardQuestions.push({
+          numbers: [hard3, hard4],
+          operator: "-",
+          answer: hard3 - hard4,
+        });
+
+        const hard5 = getMediumNumber();
+        const hard6 = getMediumNumber();
+        hardQuestions.push({
+          numbers: [hard5, hard6],
+          operator: "×",
+          answer: hard5 * hard6,
+        });
+
+        const hard7 = getSmallNumber();
+        const hard8 = getMediumNumber();
+        hardQuestions.push({
+          numbers: [hard7 * hard8, hard7],
+          operator: "÷",
+          answer: hard8,
+        });
+
+        window.ollyQuestions = {
+          easy: easyQuestions,
+          medium: mediumQuestions,
+          hard: hardQuestions,
+        };
+        window.ollySkips = 0;
+        // This is all set later as we're going through the questions
+        window.ollyStats = {
+          version: CURRENT_VERSION,
+          date: `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`,
+          easy: {
+            seconds: 0,
+            skips: 0,
+          },
+          medium: {
+            seconds: 0,
+            skips: 0,
+          },
+          hard: {
+            seconds: 0,
+            skips: 0,
+          },
+        };
+      }
+
+      generateQuestions();
+
+      /** We are smart. We are onto the next question */
+      function goToNextQuestion(currentIndex) {
+        const questionsPerDifficulty = window.ollyQuestions.easy.length;
+        const numberOfQuestions = questionsPerDifficulty * 3;
+
+        // If this is the last question of a difficulty level, record stats
+        if (
+          currentIndex % questionsPerDifficulty ===
+          questionsPerDifficulty - 1
+        ) {
+          finishRecording();
+        }
+
+        const nextIndex = currentIndex + 1;
+        if (nextIndex >= numberOfQuestions) {
+          renderDayComplete();
+        } else {
+          renderQuestion(nextIndex);
+        }
+      }
+
+      /** Handle the question form being submitted */
+      function submitQuestion(event, skip) {
+        // Don't submit the form to the server
+        event.preventDefault();
+
+        // Get the form
+        const form = document.forms.activeQuestion;
+
+        // Get the question + difficulty
+        const index = Number(form.questionIndex.value);
+        const questionsPerDifficulty = window.ollyQuestions.easy.length;
+        const difficulty =
+          DIFFICULTY_LEVELS[Math.floor(index / questionsPerDifficulty)];
+        const question =
+          window.ollyQuestions[difficulty][index % questionsPerDifficulty];
+
+        // If this is a skip log it and go to the next question.
+        if (skip) {
+          window.ollySkips += 1;
+          goToNextQuestion(index);
+          return;
+        }
+
+        // Validate the we entered a number
+        const answer = Number(form.answer.value);
+        if (Number.isNaN(answer)) {
+          displayError("That's... not even a number...");
+          return;
+        }
+
+        // Check the answer
+        if (answer > question.answer) {
+          displayError("That's too high.");
+          return;
+        }
+        if (answer < question.answer) {
+          displayError("That's too low.");
+          return;
+        }
+
+        // The answer is correct, onwards!
+        goToNextQuestion(index);
+      }
+
+      /*
+        STATS FUNCTIONS
+      */
+      function startRecording() {
+        window.statsRecordStart = +new Date();
+        window.statsRecordStartSkips = window.ollySkips;
+      }
+      function finishRecording() {
+        // STOP THE CLOCK!
+        const timeTaken = +new Date() - window.statsRecordStart; // in ms
+        const skipsUsed = window.ollySkips - window.statsRecordStartSkips;
+        delete window.statsRecordStart;
+        delete window.statsRecordStartSkips;
+
+        // Now we need to figure out what difficulty this is for.
+        // Get the form
+        const form = document.forms.activeQuestion;
+
+        // Get the question + difficulty
+        const index = Number(form.questionIndex.value);
+        const questionsPerDifficulty = window.ollyQuestions.easy.length;
+        const difficulty =
+          DIFFICULTY_LEVELS[Math.floor(index / questionsPerDifficulty)];
+
+        window.ollyStats[difficulty].seconds = Math.round(timeTaken / 1000);
+        window.ollyStats[difficulty].skips = skipsUsed;
+      }
+      /** Compress stats into a minimal string format for storage */
+      function compressStats(stats) {
+        return [
+          stats.version,
+          stats.date.replace(/[^0-9]/g, ""),
+          ...DIFFICULTY_LEVELS.flatMap((difficulty) => [
+            stats[difficulty].seconds,
+            stats[difficulty].skips,
+          ]),
+        ].join("|");
+      }
+      /** Decompress a stored stats item */
+      function decompressStats(str) {
+        const [version, dateNumber, ...results] = str
+          .split("|")
+          .map((x) => Number(x));
+        const dateStr = String(dateNumber);
+        const result = {
+          version,
+          date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(
+            6
+          )}`,
+          done: true,
+        };
+        DIFFICULTY_LEVELS.forEach((difficulty, i) => {
+          const [seconds, skips] = results.slice(i * 2, i * 2 + 2);
+          if (seconds !== undefined && skips !== undefined) {
+            result[difficulty] = {
+              seconds,
+              skips,
+            };
+          }
+        });
+        return result;
+      }
+      /** Store the daily stats in a compressed form */
+      async function storeDailyStats() {
+        const stats = window.ollyStats;
+        stats.done = true;
+        const compressed = compressStats(stats);
+
+        // Get the current log
+        const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
+
+        // If the most recent item has the same date, ignore this call
+        const mostRecentItem = statsLog.split("$").slice(-1)[0];
+        if (mostRecentItem.slice(0, 8) === compressed.slice(0, 8)) {
+          console.log("already stored today");
+          return;
+        }
+
+        // Store it with the new log on the end
+        await window.localStorage.setItem(
+          "statsLog",
+          statsLog + "$" + compressed
+        );
+      }
+      /** If we've already done today, hydrate the stats and go to the results page */
+      async function hydrateDailyStats() {
+        const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
+        const mostRecentItem = statsLog.split("$").slice(-1)[0];
+        if (mostRecentItem) {
+          const mostRecentStats = decompressStats(mostRecentItem);
+          const currentDate = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
+          if (mostRecentStats.date === currentDate) {
+            window.ollyStats = mostRecentStats;
+          }
+        }
+      }
+
+      /*
+        RENDER FUNCTIONS
+      */
+      /** Show an error message */
+      function displayError(message) {
+        const errDom = document.querySelector("#error");
+        errDom.innerHTML = message;
+        errDom.classList.add("show");
+      }
+      /** Hide any error message */
+      function hideError() {
+        const errDom = document.querySelector("#error");
+        errDom.innerHTML = "";
+        errDom.classList.remove("show");
+      }
+
+      /** Render a question */
+      function renderQuestion(index) {
+        // Get the question + difficulty
+        const questionsPerDifficulty = window.ollyQuestions.easy.length;
+        const difficulty =
+          DIFFICULTY_LEVELS[Math.floor(index / questionsPerDifficulty)];
+        const question =
+          window.ollyQuestions[difficulty][index % questionsPerDifficulty];
+
+        // Hide any errors
+        hideError();
+
+        // Render the actual question
+        const questionText = question.numbers.join(` ${question.operator} `);
+        document.querySelector("#question").innerHTML = questionText;
+
+        // Fill in the hidden form fields
+        const form = document.forms.activeQuestion;
+        form.questionIndex.value = index;
+
+        // Clear the previous answer
+        form.answer.value = "";
+
+        // If this is the first question of a difficulty level, start recording
+        if (index % questionsPerDifficulty === 0) {
+          startRecording();
+        }
+      }
+      /** Render the screen that we see on completion */
+      function renderDayComplete() {
+        // Hide the question
+        document.querySelector("#question").style.display = "none";
+        document.querySelector("form[name='activeQuestion']").style.display =
+          "none";
+
+        // Show the day complete contents
+        document.querySelector("#dayComplete").classList.add("show");
+
+        // Fill in the stats
+        DIFFICULTY_LEVELS.forEach((difficulty) => {
+          const stats = window.ollyStats[difficulty];
+          const statsDom = document.querySelector(`#${difficulty}Stats`);
+          statsDom.innerHTML = `${stats.seconds} second${
+            stats.seconds === 1 ? "" : "s"
+          } (${stats.skips} skip${stats.skips === 1 ? "" : "s"})`;
+        });
+
+        storeDailyStats();
+      }
+
+      // When the page loads, render question 0!
+      window.addEventListener("DOMContentLoaded", async () => {
+        // Render the date
+        document.querySelector(
+          "#dateSubtitle"
+        ).innerHTML = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
+
+        await hydrateDailyStats();
+
+        if (!window.ollyStats.done) {
+          renderQuestion(0);
+        } else {
+          renderDayComplete();
+        }
+      });
+
+      // When the page is focussed, Make sure the date hasn't changed
+      window.addEventListener("focus", async () => {
+        const currentDate = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
+        if (currentDate !== window.stats.date) {
+          window.location.reload();
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <h1>Daily Maths</h1>
+    <h3 id="dateSubtitle"></h3>
+    <div id="question"></div>
+    <form name="activeQuestion" onsubmit="submitQuestion(event, false)">
+      <input type="hidden" name="questionIndex" value="" />
+      <input name="answer" type="text" inputmode="numeric" />
+      <div id="error"></div>
+      <div class="buttonRow">
+        <button onclick="submitQuestion(event, true)">Skip</button>
+        <input type="submit" value="Submit" />
+      </div>
+    </form>
+    <div id="dayComplete">
+      <h1>🎉 Congratulations 🎉</h1>
+      <h3>You're done for the day!</h3>
+      <table>
+        <tr>
+          <td>Easy</td>
+          <td id="easyStats"></td>
+        </tr>
+        <tr>
+          <td>Medium</td>
+          <td id="mediumStats"></td>
+        </tr>
+        <tr>
+          <td>Hard</td>
+          <td id="hardStats"></td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>
