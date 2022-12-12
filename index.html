@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Daily Maths</title>
     <style>
       body {
@@ -96,12 +96,23 @@
         color: #666666;
         text-align: right;
       }
+      p.grey {
+        color: #666666;
+      }
+      #currentStreak,
+      #bestStreak {
+        color: black;
+        font-size: 120%;
+      }
+      #streakEmoji {
+        font-size: 300%;
+      }
     </style>
     <script>
       // The version of the questions. If we change the difficulty
       // significantly, increment this, so that we discard the stats for
       // previous versions.
-      const CURRENT_VERSION = 1;
+      const CURRENT_VERSION = 1.1;
 
       /** The difficulty levels we have */
       const DIFFICULTY_LEVELS = ["easy", "medium", "hard"];
@@ -119,6 +130,19 @@
         };
       }
 
+      /** Format a date nicely */
+      function formatDate(date) {
+        if (!date) {
+          date = new Date();
+        }
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return `${year}-${
+          month.toString().length === 1 ? `0${month}` : month
+        }-${day.toString().length === 1 ? `0${day}` : day}`;
+      }
+
       /**
        * Construct the questions, and store them on the global
        * `window.ollyQuestions`.
@@ -126,7 +150,9 @@
       function generateQuestions() {
         // Get the local date as YYYYMMDD
         const date = Number(
-          `${new Date().getFullYear()}${new Date().getMonth()}${new Date().getDate()}`
+          `${new Date().getFullYear()}${
+            new Date().getMonth() + 1
+          }${new Date().getDate()}`
         );
 
         // Seed the RNG
@@ -172,7 +198,7 @@
           For division: {small * small} / {small}
         */
 
-        const [easy1, easy2] = [getSmallNumber(), getSmallNumber()].sort(desc)
+        const [easy1, easy2] = [getSmallNumber(), getSmallNumber()].sort(desc);
         easyQuestions.push({
           numbers: [easy1, easy2],
           operator: "+",
@@ -294,23 +320,6 @@
           hard: hardQuestions,
         };
         window.ollySkips = 0;
-        // This is all set later as we're going through the questions
-        window.ollyStats = {
-          version: CURRENT_VERSION,
-          date: `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`,
-          easy: {
-            seconds: 0,
-            skips: 0,
-          },
-          medium: {
-            seconds: 0,
-            skips: 0,
-          },
-          hard: {
-            seconds: 0,
-            skips: 0,
-          },
-        };
       }
 
       generateQuestions();
@@ -383,6 +392,30 @@
       /*
         STATS FUNCTIONS
       */
+      function initStats() {
+        // This is all filled in as we're going through the questions
+        window.ollyStats = {
+          version: CURRENT_VERSION,
+          date: formatDate(),
+          easy: {
+            seconds: 0,
+            skips: 0,
+          },
+          medium: {
+            seconds: 0,
+            skips: 0,
+          },
+          hard: {
+            seconds: 0,
+            skips: 0,
+          },
+        };
+        window.ollyStreak = {
+          current: 0,
+          best: 0,
+        };
+      }
+      initStats();
       function startRecording() {
         window.statsRecordStart = +new Date();
         window.statsRecordStartSkips = window.ollySkips;
@@ -420,27 +453,70 @@
       }
       /** Decompress a stored stats item */
       function decompressStats(str) {
-        const [version, dateNumber, ...results] = str
-          .split("|")
-          .map((x) => Number(x));
-        const dateStr = String(dateNumber);
-        const result = {
-          version,
-          date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(
-            6
-          )}`,
-          done: true,
-        };
-        DIFFICULTY_LEVELS.forEach((difficulty, i) => {
-          const [seconds, skips] = results.slice(i * 2, i * 2 + 2);
-          if (seconds !== undefined && skips !== undefined) {
-            result[difficulty] = {
-              seconds,
-              skips,
-            };
-          }
-        });
-        return result;
+        if (str.startsWith("1|")) {
+          // Version 1 - had a faulty month number
+          const [version, dateNumber, ...results] = str
+            .split("|")
+            .map((x) => Number(x));
+          const dateStr = String(dateNumber);
+          const result = {
+            version,
+            date: formatDate(
+              new Date(
+                `${dateStr.slice(0, 4)}-${
+                  1 + Number(dateStr.slice(4, 6))
+                }-${dateStr.slice(6)}`
+              )
+            ),
+            done: true,
+          };
+          DIFFICULTY_LEVELS.forEach((difficulty, i) => {
+            const [seconds, skips] = results.slice(i * 2, i * 2 + 2);
+            if (seconds !== undefined && skips !== undefined) {
+              result[difficulty] = {
+                seconds,
+                skips,
+              };
+            }
+          });
+          return result;
+        }
+        if (str.startsWith("1.1|")) {
+          // Version 1.1
+          const [version, dateNumber, ...results] = str
+            .split("|")
+            .map((x) => Number(x));
+          const dateStr = String(dateNumber);
+          const result = {
+            version,
+            date: formatDate(
+              new Date(
+                `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(
+                  6
+                )}`
+              )
+            ),
+            done: true,
+          };
+          DIFFICULTY_LEVELS.forEach((difficulty, i) => {
+            const [seconds, skips] = results.slice(i * 2, i * 2 + 2);
+            if (seconds !== undefined && skips !== undefined) {
+              result[difficulty] = {
+                seconds,
+                skips,
+              };
+            }
+          });
+          return result;
+        }
+
+        // Handle empty entry at the start
+        if (!str.trim()) {
+          return null;
+        }
+        // Debug if we don't know this version
+        console.log("Found stats with an unknown version!", str.split("|")[0]);
+        return null;
       }
       /** Store the daily stats in a compressed form */
       async function storeDailyStats() {
@@ -467,14 +543,89 @@
       /** If we've already done today, hydrate the stats and go to the results page */
       async function hydrateDailyStats() {
         const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
-        const mostRecentItem = statsLog.split("$").slice(-1)[0];
+
+        const mostRecentItem = statsLog
+          .split("$")
+          .filter((x) => x)
+          .slice(-1)[0];
         if (mostRecentItem) {
           const mostRecentStats = decompressStats(mostRecentItem);
-          const currentDate = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
+          const currentDate = formatDate();
           if (mostRecentStats.date === currentDate) {
             window.ollyStats = mostRecentStats;
           }
         }
+      }
+      /** Decode the daily stats log and grab some stats */
+      async function hydrateDailyStreak() {
+        const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
+
+        // Get history in reverse-chronological order
+        const history = statsLog
+          .split("$")
+          .map(decompressStats)
+          .filter((x) => x)
+          .reverse();
+
+        function datesAreConsecutive(date1, date2) {
+          const date1AsEpoch = +new Date(date1);
+          const dayBefore = new Date(date1AsEpoch - 86_400_000);
+          const dayAfter = new Date(date1AsEpoch + 86_400_000);
+          return [formatDate(dayBefore), date1, formatDate(dayAfter)].includes(
+            date2
+          );
+        }
+
+        let longestStreak = {
+          length: 0,
+          longest: 0,
+          active: true,
+        };
+        let currentStreak = {
+          longest: 0,
+          active: true,
+        };
+        let previousDay;
+        for (const day of history) {
+          const dayIsConsecutive = datesAreConsecutive(
+            previousDay?.date ?? formatDate(),
+            day.date
+          );
+
+          console.log("Day", day.date);
+          console.log(
+            `  Starting out with currentStreak: ${currentStreak.longest} ${currentStreak.active} and longestStreak: ${longestStreak.length} ${longestStreak.active}.`
+          );
+          console.log(`  datesAreConsecutive? ${dayIsConsecutive}`);
+
+          // Current streak
+          if (currentStreak.active && dayIsConsecutive) {
+            currentStreak.longest += 1;
+          } else if (previousDay) {
+            currentStreak.active = false;
+          }
+
+          // All time streak
+          if (longestStreak.active) {
+            if (dayIsConsecutive) {
+              longestStreak.length += 1;
+            } else {
+              longestStreak.active = false;
+            }
+          } else {
+            if (dayIsConsecutive) {
+              longestStreak.length = 1;
+              longestStreak.active = true;
+            }
+          }
+          if (longestStreak.length > longestStreak.longest) {
+            longestStreak.longest = longestStreak.length;
+          }
+
+          previousDay = day;
+        }
+        window.ollyStreak.current = currentStreak.longest;
+        window.ollyStreak.best = longestStreak.longest;
       }
 
       /*
@@ -541,14 +692,82 @@
         });
 
         storeDailyStats();
+        hydrateDailyStreak().then(() => renderStreaks()); // Async so we don't block
+      }
+      /** Render the streaks */
+      function renderStreaks() {
+        const currentStreakDom = document.querySelector("#currentStreak");
+        if (currentStreakDom) {
+          currentStreakDom.innerHTML = window.ollyStreak.current;
+        }
+        const bestStreakDom = document.querySelector("#bestStreak");
+        if (bestStreakDom) {
+          bestStreakDom.innerHTML = window.ollyStreak.best;
+        }
+
+        let streakEmoji = "🦽";
+        if (window.ollyStreak.current > 1) {
+          streakEmoji = "🚶‍♂️";
+        }
+        if (window.ollyStreak.current > 3) {
+          streakEmoji = "🏃‍♀️";
+        }
+        if (window.ollyStreak.current > 5) {
+          streakEmoji = "🚴‍♂️";
+        }
+        if (window.ollyStreak.current > 7) {
+          streakEmoji = "🛶";
+        }
+        if (window.ollyStreak.current > 10) {
+          streakEmoji = "🐪";
+        }
+        if (window.ollyStreak.current > 11) {
+          streakEmoji = "🐎";
+        }
+        if (window.ollyStreak.current > 13) {
+          streakEmoji = "⛵️";
+        }
+        if (window.ollyStreak.current > 15) {
+          streakEmoji = "🚗";
+        }
+        if (window.ollyStreak.current > 17) {
+          streakEmoji = "🚒";
+        }
+        if (window.ollyStreak.current > 20) {
+          streakEmoji = "🏎";
+        }
+        if (window.ollyStreak.current > 23) {
+          streakEmoji = "🚓";
+        }
+        if (window.ollyStreak.current > 25) {
+          streakEmoji = "🚂";
+        }
+        if (window.ollyStreak.current > 30) {
+          streakEmoji = "🚄";
+        }
+        if (window.ollyStreak.current > 35) {
+          streakEmoji = "🚁";
+        }
+        if (window.ollyStreak.current > 40) {
+          streakEmoji = "🛩";
+        }
+        if (window.ollyStreak.current > 45) {
+          streakEmoji = "🛸";
+        }
+        if (window.ollyStreak.current > 50) {
+          streakEmoji = "🚀";
+        }
+
+        const streakEmojiDom = document.querySelector("#streakEmoji");
+        if (streakEmojiDom) {
+          streakEmojiDom.innerHTML = streakEmoji;
+        }
       }
 
       // When the page loads, render question 0!
       window.addEventListener("DOMContentLoaded", async () => {
         // Render the date
-        document.querySelector(
-          "#dateSubtitle"
-        ).innerHTML = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
+        document.querySelector("#dateSubtitle").innerHTML = formatDate();
 
         await hydrateDailyStats();
 
@@ -561,8 +780,8 @@
 
       // When the page is focussed, Make sure the date hasn't changed
       window.addEventListener("focus", async () => {
-        const currentDate = `${new Date().getFullYear()}-${new Date().getMonth()}-${new Date().getDate()}`;
-        if (currentDate !== window.stats.date) {
+        const currentDate = formatDate();
+        if (currentDate !== window.ollyStats.date) {
           window.location.reload();
         }
       });
@@ -598,6 +817,11 @@
           <td id="hardStats"></td>
         </tr>
       </table>
+      <p class="grey">
+        Your current streak is <span id="currentStreak">0</span>, your best
+        streak is <span id="bestStreak">0</span>.
+      </p>
+      <div id="streakEmoji"></div>
     </div>
   </body>
 </html>
