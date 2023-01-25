@@ -528,8 +528,9 @@
         const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
 
         // If the most recent item has the same date, ignore this call
-        const mostRecentItem = statsLog.split("$").slice(-1)[0];
-        if (mostRecentItem.slice(0, 8) === compressed.slice(0, 8)) {
+        const mostRecentItemCompressed = statsLog.split("$").slice(-1)[0];
+        const mostRecentItem = decompressStats(statsLog.split("$").slice(-1)[0]);
+        if (stats.date === mostRecentItem.date) {
           console.log("already stored today");
           return;
         }
@@ -592,11 +593,11 @@
             day.date
           );
 
-          console.log("Day", day.date);
-          console.log(
-            `  Starting out with currentStreak: ${currentStreak.longest} ${currentStreak.active} and longestStreak: ${longestStreak.length} ${longestStreak.active}.`
-          );
-          console.log(`  datesAreConsecutive? ${dayIsConsecutive}`);
+          // console.log("Day", day.date);
+          // console.log(
+          //   `  Starting out with currentStreak: ${currentStreak.longest} ${currentStreak.active} and longestStreak: ${longestStreak.length} ${longestStreak.active}.`
+          // );
+          // console.log(`  datesAreConsecutive? ${dayIsConsecutive}`);
 
           // Current streak
           if (currentStreak.active && dayIsConsecutive) {
@@ -624,6 +625,11 @@
 
           previousDay = day;
         }
+
+
+        // console.log("currentStreak", currentStreak)
+        // console.log("longestStreak", longestStreak)
+        // console.log("window.ollyStats.done", window.ollyStats.done)
         window.ollyStreak.current = currentStreak.longest;
         window.ollyStreak.best = longestStreak.longest;
       }
@@ -691,8 +697,8 @@
           } (${stats.skips} skip${stats.skips === 1 ? "" : "s"})`;
         });
 
-        storeDailyStats();
-        hydrateDailyStreak().then(() => renderStreaks()); // Async so we don't block
+        // Async so we don't block
+        storeDailyStats().then(() => hydrateDailyStreak()).then(() => renderStreaks());
       }
       /** Render the streaks */
       function renderStreaks() {
@@ -786,7 +792,80 @@
         }
       });
     </script>
-  </head>
+    <!-- Tests -->
+    <script>
+      async function runTests() {
+        const statsLog = (await window.localStorage?.getItem("statsLog")) ?? "";
+
+        // Get history in reverse-chronological order
+        const history = statsLog
+          .split("$")
+          .map(decompressStats)
+          .filter((x) => x)
+          .reverse();
+
+        function datesAreConsecutive(date1, date2) {
+          const date1AsEpoch = +new Date(date1);
+          const dayBefore = new Date(date1AsEpoch - 86_400_000);
+          const dayAfter = new Date(date1AsEpoch + 86_400_000);
+          return [formatDate(dayBefore), date1, formatDate(dayAfter)].includes(
+            date2
+          );
+        }
+
+        let longestStreak = {
+          length: 0,
+          longest: 0,
+          active: true,
+        };
+        let currentStreak = {
+          longest: 0,
+          active: true,
+        };
+        let previousDay;
+        for (const day of history) {
+          const dayIsConsecutive = datesAreConsecutive(
+            previousDay?.date ?? formatDate(),
+            day.date
+          );
+
+          console.log("Day", day.date);
+          console.log(
+            `  Starting out with currentStreak: ${currentStreak.longest} ${currentStreak.active} and longestStreak: ${longestStreak.length} ${longestStreak.active}.`
+          );
+          console.log(`  datesAreConsecutive? ${dayIsConsecutive}`);
+
+          // Current streak
+          if (currentStreak.active && dayIsConsecutive) {
+            currentStreak.longest += 1;
+          } else if (previousDay) {
+            currentStreak.active = false;
+          }
+
+          // All time streak
+          if (longestStreak.active) {
+            if (dayIsConsecutive) {
+              longestStreak.length += 1;
+            } else {
+              longestStreak.active = false;
+            }
+          } else {
+            if (dayIsConsecutive) {
+              longestStreak.length = 1;
+              longestStreak.active = true;
+            }
+          }
+          if (longestStreak.length > longestStreak.longest) {
+            longestStreak.longest = longestStreak.length;
+          }
+
+          previousDay = day;
+        }
+        
+        console.log("currentStreak", currentStreak)
+        console.log("longestStreak", longestStreak)
+      }
+    </script>
   <body>
     <h1>Daily Maths</h1>
     <h3 id="dateSubtitle"></h3>
